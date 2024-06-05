@@ -225,9 +225,7 @@ if (criteria2) {
                 <td>${item.nama}</td>
         `
         item.nilai.forEach((nilai, index) => {
-            let pangkat = criteria[index].tipe == 'benefit' ? criteria[index].weighted_product :
-                criteria[
-                    index].weighted_product * -1
+            let pangkat = criteria[index].weighted_product
             table_si += `
                     <td>${nilai**pangkat}</td>
                 `
