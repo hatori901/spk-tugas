@@ -7,4 +7,6 @@ $db_config = array(
     'database' => 'spk'
 );
 
+$conn = new mysqli($db_config['host'], $db_config['username'], $db_config['password'], $db_config['database']);
+
 ?>

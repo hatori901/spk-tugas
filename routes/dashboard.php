@@ -1,4 +1,20 @@
 <?php include('../components/header.php') ?>
+
+<?php
+
+if (!isset($_SESSION['login'])) {
+    header('Location: ../index.php');
+}
+
+$master_kriteria = select('kriteria_master');
+
+
+if(isset($_GET['kriteria'])){
+    $data = select('kriteria', "kriteria_master_id = ".$_GET['kriteria']);
+    $kritera_master_id = $_GET['kriteria'];
+}
+
+?>
 <div class="d-flex">
     <div class="d-flex flex-column align-items-stretch flex-shrink-0 bg-body-tertiary" style="width: 380px;">
         <div
@@ -9,6 +25,13 @@
             </button>
         </div>
         <div class="list-group list-group-flush border-bottom scrollarea">
+            <?php foreach ($master_kriteria as $key => $value) : ?>
+            <a href="#" id="kriteria-<?= $value['id'] ?>" class="list-group-item list-group-item-action py-3 lh-sm">
+                <div class="d-flex w-100 align-items-center justify-content-between">
+                    <strong class="mb-1"><?= $value['name'] ?></strong>
+                </div>
+            </a>
+            <?php endforeach; ?>
             <a href="#" id="add" class="list-group-item list-group-item-action py-3 lh-sm">
                 <div class="d-flex w-100 align-items-center justify-content-center">
                     <strong class="mb-1 text-center">Tambah</strong>
@@ -23,17 +46,37 @@
             <table id="kriteria" class="table table-striped">
                 <thead>
                     <tr>
-                        <th scope="col">#</th>
                         <th scope="col">Kode Kriteria</th>
                         <th scope="col">Nama Kriteria</th>
                         <th scope="col">Tipe</th>
                         <th scope="col">Bobot</th>
+                        <th scope="col">Weighted Product</th>
                         <th scope="col">Hapus</th>
                     </tr>
                 </thead>
                 <tbody>
+                    <?php if(isset($data)): ?>
+                    <?php $total_weighted_product = getTotalWeightedProduct($data) ?>
+
+                    <?php foreach ($data as $key => $value) : ?>
+                    <?php $weighted_product = $value['tipe'] == 'benefit' ? $value['bobot'] : $value['bobot'] * -1 ?>
+                    <?php $value['weighted_product'] = $weighted_product / $total_weighted_product ?>
                     <tr>
-                        <td colspan="6" class="text-center">
+                        <td><?= $value['kode'] ?></td>
+                        <td><?= $value['nama'] ?></td>
+                        <td><?= $value['tipe'] ?></td>
+                        <td><?= $value['bobot'] ?></td>
+                        <td><?= $value['weighted_product'] ?></td>
+                        <td>
+                            <button class="btn btn-danger delete" data-id="<?= $value['id'] ?>">
+                                Hapus
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                    <?php endif; ?>
+                    <tr>
+                        <td colspan="7" class="text-center">
                             <button class="btn btn-primary" id="add_criterian">
                                 Add Kriteria
                             </button>
@@ -46,94 +89,165 @@
             </table>
         </div>
 
+        <?php if(!empty($data)): ?>
         <div class="table-responsive box-table">
             <h3>Table Kriteria & Alternatif</h3>
             <table id="kriteria2" class="table table-striped mt-5">
+                <thead>
+                    <tr>
+                        <th scope="col">Nama Pelamar</th>
+                        <?php foreach ($data as $key => $value) : ?>
+                        <th scope="col"><?= $value['nama'] ?></th>
+                        <?php endforeach; ?>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $kriteria_id = getKriteriaId($kritera_master_id) ?>
+                    <?php $alternatives = select('alternative', "kriteria_id = ".$kriteria_id['id']) ?>
+                    <?php foreach ($alternatives as $key => $value) : ?>
+                    <tr>
+                        <td><?= $value['nama'] ?></td>
+                        <?php foreach ($data as $key => $kriteria) : ?>
+                        <?php $nilai = select('alternative_nilai', "alternative_id = ".$value['id']." AND kriteria_id = ".$kriteria['id']) ?>
+                        <td><?= $nilai[0]['nilai'] ?></td>
+                        <?php endforeach; ?>
+                    </tr>
+                    <?php endforeach; ?>
+                    <tr>
+                        <td colspan="7" class="text-center">
+                            <button class="btn btn-primary" id="add_criterian2">
+                                Add Kriteria
+                            </button>
+                            <button class="btn btn-success" id="simpan_criteria2">
+                                Simpan
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
             </table>
         </div>
+        <?php endif; ?>
 
+        <?php if(!empty($data)): ?>
         <div class="table-responsive box-table">
             <h3>Table SI</h3>
             <table id="table_si" class="table table-striped mt-5">
+                <thead>
+                    <tr>
+                        <th scope="col">Nama Pelamar</th>
+                        <?php foreach ($data as $key => $value) : ?>
+                        <th scope="col"><?= $value['nama'] ?></th>
+                        <?php endforeach; ?>
+                        <th>SI</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $alternatives = select('alternative', "kriteria_id = ".$kriteria_id['id']) ?>
+                    <?php
+                    $total_si = 0;
+                    $data_si = [];
+                    $total_weighted_product = getTotalWeightedProduct($data);
+                    foreach ($data as $key => $value) {
+                        $data[$key]['weighted_product'] = $value['bobot'] / $total_weighted_product;
+                    }
+                    ?>
+                    <?php foreach ($alternatives as $key => $value) : ?>
+                    <tr>
+                        <td><?= $value['nama'] ?></td>
+                        <?php foreach ($data as $key => $kriteria) : ?>
+                        <?php $nilai = select('alternative_nilai', "alternative_id = ".$value['id']." AND kriteria_id = ".$kriteria['id']) ?>
+                        <td><?= $nilai[0]['nilai'] ** ($kriteria['tipe'] == 'benefit' ? $kriteria['weighted_product'] : $kriteria['weighted_product'] * -1) ?>
+                        </td>
+                        <?php endforeach; ?>
+                        <td>
+                            <?php
+                            $si = 0;
+                            foreach ($data as $key => $kriteria) {
+                                $nilai = select('alternative_nilai', "alternative_id = ".$value['id']." AND kriteria_id = ".$kriteria['id']);
+                                if($si == 0){
+                                    $si = $nilai[0]['nilai'] ** ($kriteria['tipe'] == 'benefit' ? $kriteria['weighted_product'] : $kriteria['weighted_product'] * -1);
+                                }else{
+                                    $si *= $nilai[0]['nilai'] ** ($kriteria['tipe'] == 'benefit' ? $kriteria['weighted_product'] : $kriteria['weighted_product'] * -1);
+                                }
+                            }
+                            $data_si[] = $si;
+                            echo $si;
+                            ?>
+                        </td>
+                    </tr>
+                    <?php $total_si += $si; ?>
+                    <?php endforeach; ?>
+                </tbody>
             </table>
         </div>
+        <?php endif; ?>
 
+        <?php if(!empty($data)): ?>
         <div class="table-responsive box-table">
             <h3>Table Ranking</h3>
             <table id="table_ranking" class="table table-striped mt-5">
+                <thead>
+                    <tr>
+                        <th scope="col">Nama Pelamar</th>
+                        <th scope="col">VI</th>
+                        <th>Ranking</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php $alternatives = select('alternative', "kriteria_id = ".$kriteria_id['id']) ?>
+                    <?php
+                    $index = 0;
+                    array_column($alternatives, 'nama');
+                    array_multisort($data_si, SORT_DESC, $alternatives);
+                    ?>
+                    <?php foreach ($alternatives as $key => $value) : ?>
+                    <tr>
+                        <td><?= $value['nama'] ?></td>
+                        <td><?= $data_si[$index] / $total_si;?></td>
+                        <td><?= $index + 1 ?></td>
+                    </tr>
+                    <?php $index++; ?>
+                    <?php endforeach; ?>
+                </tbody>
             </table>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 <script>
-$(document).ready(function() {
-    if (!localStorage.getItem('login')) {
-        window.location.href = '../index.php'
-    }
-})
-$('#logout').on('click', function() {
-    localStorage.removeItem('login')
-    window.location.href = '../index.php'
+$('a[id^="kriteria-"]').click(function() {
+    let id = $(this).attr('id').split('-')[1]
+    location = `dashboard.php?kriteria=${id}`
 })
 
-let perhitungan = localStorage.getItem('perhitungan') ? JSON.parse(localStorage.getItem('perhitungan')) : []
-let length = perhitungan.length
-$('#add').on('click', function() {
+$('#add').click(function() {
     $(this).before(`
-        <a href="#" data-index="${length + 1}" class="list-group-item list-group-item-action py-3 lh-sm">
-            <div class="d-flex w-100 align-items-center justify-content-between">
-                <div>
-                    <div class="d-flex w-100 align-items-center justify-content-between">
-                        <strong class="mb-1">Perhitungan</strong>
-                        <small class="text-body-secondary">Mon</small>
-                    </div>
-                    <div class="col-10 mb-1 small">Some placeholder content in a paragraph below the heading and date.</div>
-                </div>
-                <button class="btn btn-danger">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                    </svg>
-                </button>
-            </div>
-        </a>
-    `)
-    length++
-    perhitungan.push({
-        nama: 'Perhitungan',
-        tanggal: 'Mon',
-        deskripsi: 'Some placeholder content in a paragraph below the heading and date.'
-    })
-    localStorage.setItem('perhitungan', JSON.stringify(perhitungan))
-})
-
-if (perhitungan.length > 0) {
-    perhitungan.forEach((item, index) => {
-        $('#add').before(`
-            <a href="#" data-index="${index}" class="list-group-item list-group-item-action py-3 lh-sm">
-                <div class="d-flex w-100 align-items-center justify-content-between">
-                    <div>
-                        <div class="d-flex w-100 align-items-center justify-content-between">
-                            <strong class="mb-1">${item.nama}</strong>
-                        </div>
-                        <div class="col-10 mb-1 small">${item.deskripsi}</div>
-                    </div>
-                    <button class="btn btn-danger text-white z-3" id="delete-perhitungan">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                        </svg>
+        <div class="list-group-item list-group-item-action py-3 lh-sm">
+            <form method="post" action="simpan_hitung.php">
+                <div class="d-flex">
+                    <input type="text" class="form-control" name="nama" placeholder="Nama">
+                    <button type="submit" class="btn btn-primary" id="simpan-hitung">
+                        Simpan
                     </button>
                 </div>
-            </a>
-        `)
-    })
-}
+            </form>
+        </div>
+    `)
+});
 
-$('#delete-perhitungan').on('click', function() {
-    let index = $(this).parent().parent().data('index')
-    console.log(index)
-    perhitungan.splice(index, 1)
-    localStorage.setItem('perhitungan', JSON.stringify(perhitungan))
-    window.location.reload()
+$('#simpan-hitung').click(function() {
+    let nama = $(this).parent().find('input').val()
+    let data = `nama=${nama}`
+    $.ajax({
+        url: '/routes/simpan_hitung.php',
+        type: 'POST',
+        data: data,
+        success: function(response) {
+            if (response) {
+                window.location.reload()
+            }
+        }
+    })
 })
 </script>
 <?php include('../components/footer.php') ?>
