@@ -64,6 +64,7 @@ function getKriteriaId($id)
     return $result->fetch_assoc();
 }
 
+
 function getKriteriaIdByKode($id, $kode)
 {
     global $conn;
@@ -71,6 +72,7 @@ function getKriteriaIdByKode($id, $kode)
     $result = $conn->query($query);
     return $result->fetch_assoc();
 }
+
 function logout()
 {
     session_destroy();
